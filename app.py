@@ -7,6 +7,9 @@ import re
 import json
 import numpy as np
 from flask import Flask, request, jsonify, render_template
+import nltk
+nltk.download("stopwords", quiet=True)
+nltk.download("punkt", quiet=True)
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
 
