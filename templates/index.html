@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spam Detector — XAI</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+
+  .header {
+    background: linear-gradient(135deg, #1e293b, #0f172a);
+    border-bottom: 1px solid #334155;
+    padding: 20px 40px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .header h1 { font-size: 22px; font-weight: 700; color: #f1f5f9; }
+  .header p  { font-size: 13px; color: #64748b; margin-top: 2px; }
+  .badge {
+    background: #4f46e5; color: white;
+    padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+  }
+
+  .container { max-width: 900px; margin: 40px auto; padding: 0 20px; }
+
+  .card {
+    background: #1e293b; border: 1px solid #334155;
+    border-radius: 16px; padding: 28px; margin-bottom: 24px;
+  }
+  .card h2 { font-size: 15px; font-weight: 600; color: #94a3b8; margin-bottom: 16px;
+    text-transform: uppercase; letter-spacing: 0.08em; }
+
+  textarea {
+    width: 100%; height: 120px; background: #0f172a; border: 1px solid #334155;
+    border-radius: 10px; color: #f1f5f9; padding: 14px; font-size: 14px;
+    resize: vertical; outline: none; transition: border-color 0.2s;
+    font-family: inherit;
+  }
+  textarea:focus { border-color: #4f46e5; }
+
+  .controls { display: flex; gap: 12px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
+
+  select {
+    background: #0f172a; border: 1px solid #334155; color: #f1f5f9;
+    padding: 10px 14px; border-radius: 8px; font-size: 13px; outline: none;
+  }
+
+  .btn {
+    padding: 10px 22px; border: none; border-radius: 8px;
+    font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+  }
+  .btn-primary { background: #4f46e5; color: white; }
+  .btn-primary:hover { background: #6056f0; transform: translateY(-1px); }
+  .btn-secondary { background: #334155; color: #e2e8f0; }
+  .btn-secondary:hover { background: #475569; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .quick-tests { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  .quick-btn {
+    padding: 6px 14px; border-radius: 20px; font-size: 12px; cursor: pointer;
+    border: 1px solid #334155; background: #0f172a; color: #94a3b8;
+    transition: all 0.2s;
+  }
+  .quick-btn:hover { border-color: #4f46e5; color: #a5b4fc; }
+
+  /* Result */
+  .result-box {
+    display: none; border-radius: 12px; padding: 20px;
+    margin-top: 20px; border: 1px solid;
+  }
+  .result-box.spam { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.3); }
+  .result-box.ham  { background: rgba(34,197,94,0.08); border-color: rgba(34,197,94,0.3); }
+
+  .result-header { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+  .verdict {
+    font-size: 26px; font-weight: 800;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .verdict.spam { color: #ef4444; }
+  .verdict.ham  { color: #22c55e; }
+
+  .confidence-bar {
+    flex: 1; background: #0f172a; border-radius: 20px; height: 8px; overflow: hidden;
+  }
+  .confidence-fill {
+    height: 100%; border-radius: 20px;
+    background: linear-gradient(90deg, #4f46e5, #06b6d4);
+    transition: width 0.8s ease;
+  }
+  .conf-label { font-size: 13px; color: #94a3b8; }
+
+  /* Highlighted text */
+  .highlighted-text {
+    font-size: 15px; line-height: 1.8; margin-bottom: 16px;
+    background: #0f172a; padding: 14px; border-radius: 8px;
+  }
+  .hw { background: rgba(239,68,68,0.25); color: #fca5a5;
+    padding: 1px 4px; border-radius: 3px; font-weight: 600; }
+  .hw.ham-word { background: rgba(34,197,94,0.2); color: #86efac; }
+
+  /* XAI words */
+  .xai-section h3 { font-size: 12px; color: #64748b; text-transform: uppercase;
+    letter-spacing: 0.1em; margin-bottom: 10px; }
+  .xai-words { display: flex; flex-wrap: wrap; gap: 8px; }
+  .xai-word {
+    padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
+  }
+  .xai-word.spam-word { background: rgba(239,68,68,0.15); color: #f87171;
+    border: 1px solid rgba(239,68,68,0.3); }
+  .xai-word.ham-word  { background: rgba(34,197,94,0.12); color: #4ade80;
+    border: 1px solid rgba(34,197,94,0.3); }
+
+  /* Compare table */
+  .compare-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .compare-table th {
+    text-align: left; padding: 10px 14px; color: #64748b;
+    border-bottom: 1px solid #334155; font-weight: 500; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.08em;
+  }
+  .compare-table td { padding: 12px 14px; border-bottom: 1px solid #1e293b; }
+  .compare-table tr:last-child td { border-bottom: none; }
+  .pill {
+    display: inline-block; padding: 3px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+  }
+  .pill.spam { background: rgba(239,68,68,0.15); color: #ef4444; }
+  .pill.ham  { background: rgba(34,197,94,0.12); color: #22c55e; }
+
+  .loading { display: none; text-align: center; padding: 20px; color: #64748b; }
+  .spinner {
+    display: inline-block; width: 20px; height: 20px; border: 2px solid #334155;
+    border-top-color: #4f46e5; border-radius: 50%; animation: spin 0.8s linear infinite;
+    margin-right: 8px; vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .stat-card {
+    background: #0f172a; border: 1px solid #334155;
+    border-radius: 10px; padding: 16px; text-align: center;
+  }
+  .stat-num { font-size: 24px; font-weight: 700; color: #4f46e5; display: block; }
+  .stat-label { font-size: 11px; color: #64748b; margin-top: 4px; display: block; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>🛡️ Spam Detection System</h1>
+    <p>Explainable AI · Real-Time Classification · Ensemble ML</p>
+  </div>
+  <span class="badge">XAI Powered</span>
+</div>
+
+<div class="container">
+
+  <!-- Stats -->
+  <div class="stats" style="margin-bottom:24px">
+    <div class="stat-card">
+      <span class="stat-num">95%</span>
+      <span class="stat-label">Model Accuracy</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-num">&lt;200ms</span>
+      <span class="stat-label">Response Latency</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-num">3</span>
+      <span class="stat-label">ML Models</span>
+    </div>
+  </div>
+
+  <!-- Input Card -->
+  <div class="card">
+    <h2>Classify Message</h2>
+    <textarea id="input-text" placeholder="Enter a message to classify as spam or ham..."></textarea>
+
+    <div class="controls">
+      <select id="model-select">
+        <option value="Naive Bayes">Naive Bayes</option>
+        <option value="Logistic Regression">Logistic Regression</option>
+        <option value="SVM">SVM</option>
+      </select>
+      <button class="btn btn-primary" onclick="predict()">🔍 Classify</button>
+      <button class="btn btn-secondary" onclick="compare()">⚖️ Compare All Models</button>
+      <button class="btn btn-secondary" onclick="clearAll()">✕ Clear</button>
+    </div>
+
+    <div style="margin-top:14px">
+      <p style="font-size:12px; color:#64748b; margin-bottom:8px">Quick test:</p>
+      <div class="quick-tests">
+        <button class="quick-btn" onclick="setExample('spam1')">🚫 Spam Example 1</button>
+        <button class="quick-btn" onclick="setExample('spam2')">🚫 Spam Example 2</button>
+        <button class="quick-btn" onclick="setExample('ham1')">✅ Ham Example 1</button>
+        <button class="quick-btn" onclick="setExample('ham2')">✅ Ham Example 2</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div class="loading" id="loading">
+    <span class="spinner"></span> Analyzing message...
+  </div>
+
+  <!-- Result -->
+  <div class="result-box" id="result-box">
+    <div class="result-header">
+      <div class="verdict" id="verdict"></div>
+      <div style="flex:1">
+        <div class="conf-label" id="conf-label"></div>
+        <div class="confidence-bar" style="margin-top:6px">
+          <div class="confidence-fill" id="conf-fill" style="width:0%"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="highlighted-text" id="highlighted-text"></div>
+
+    <div class="xai-section">
+      <h3>Key Words Driving This Prediction</h3>
+      <div class="xai-words" id="xai-words"></div>
+    </div>
+
+    <p style="font-size:11px; color:#475569; margin-top:14px" id="model-used"></p>
+  </div>
+
+  <!-- Compare Results -->
+  <div class="card" id="compare-card" style="display:none">
+    <h2>Model Comparison</h2>
+    <table class="compare-table" id="compare-table"></table>
+  </div>
+
+</div>
+
+<script>
+const examples = {
+  spam1: "WINNER!! You have been selected to receive a $1000 Walmart Gift Card. Click here now to claim your prize!",
+  spam2: "URGENT: Your account will be suspended. Verify your details immediately at secure-login.net or lose access forever!",
+  ham1:  "Hey, can we reschedule our meeting to Thursday afternoon? Let me know what works for you.",
+  ham2:  "Please find the attached report. Let me know if you have any questions or need clarification."
+};
+
+function setExample(key) {
+  document.getElementById('input-text').value = examples[key];
+}
+
+function clearAll() {
+  document.getElementById('input-text').value = '';
+  document.getElementById('result-box').style.display = 'none';
+  document.getElementById('compare-card').style.display = 'none';
+  document.getElementById('loading').style.display = 'none';
+}
+
+async function predict() {
+  const text = document.getElementById('input-text').value.trim();
+  const model = document.getElementById('model-select').value;
+  if (!text) return;
+
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('result-box').style.display = 'none';
+
+  const res  = await fetch('/predict', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({text, model})
+  });
+  const data = await res.json();
+
+  document.getElementById('loading').style.display = 'none';
+
+  // Verdict
+  const box     = document.getElementById('result-box');
+  const verdict = document.getElementById('verdict');
+  box.className = `result-box ${data.prediction}`;
+  box.style.display = 'block';
+  verdict.className = `verdict ${data.prediction}`;
+  verdict.innerHTML = data.prediction === 'spam'
+    ? '🚫 SPAM' : '✅ NOT SPAM';
+
+  // Confidence
+  document.getElementById('conf-label').textContent =
+    `Confidence: ${data.confidence}%`;
+  setTimeout(() => {
+    document.getElementById('conf-fill').style.width = data.confidence + '%';
+  }, 100);
+
+  // Highlighted text
+  const htDiv = document.getElementById('highlighted-text');
+  htDiv.innerHTML = data.highlighted.map(w =>
+    w.highlight
+      ? `<span class="hw ${data.prediction === 'ham' ? 'ham-word' : ''}">${w.word}</span>`
+      : w.word
+  ).join(' ');
+
+  // XAI words
+  const xaiDiv = document.getElementById('xai-words');
+  xaiDiv.innerHTML = data.xai_words.length
+    ? data.xai_words.map(([word, score]) =>
+        `<span class="xai-word ${data.prediction}-word">${word} (${score.toFixed(3)})</span>`
+      ).join('')
+    : '<span style="color:#64748b;font-size:13px">No strongly influential words detected.</span>';
+
+  document.getElementById('model-used').textContent =
+    `Model: ${data.model_used}`;
+}
+
+async function compare() {
+  const text = document.getElementById('input-text').value.trim();
+  if (!text) return;
+
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('compare-card').style.display = 'none';
+
+  const res  = await fetch('/compare', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({text})
+  });
+  const data = await res.json();
+
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('compare-card').style.display = 'block';
+
+  const table = document.getElementById('compare-table');
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>Model</th>
+        <th>Prediction</th>
+        <th>Confidence</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${Object.entries(data).map(([name, r]) => `
+        <tr>
+          <td style="color:#f1f5f9;font-weight:500">${name}</td>
+          <td><span class="pill ${r.prediction}">${r.prediction}</span></td>
+          <td style="color:#94a3b8">${r.confidence !== null ? r.confidence + '%' : '—'}</td>
+        </tr>
+      `).join('')}
+    </tbody>
+  `;
+}
+
+document.getElementById('input-text').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.ctrlKey) predict();
+});
+</script>
+</body>
+</html>
